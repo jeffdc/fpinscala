@@ -1,7 +1,8 @@
-package com.nothoo
+package com.nothoo.ch3
 
 import scala.annotation.tailrec
 
+// make all of this stuff private so that the other exercises do not see them
 sealed trait List[+A]
 case object Nil extends List[Nothing]
 case class Cons[+A](head: A, tail: List[A]) extends List[A]
@@ -169,7 +170,7 @@ object Tree {
 
 object Ch3 extends App {
   {
-    import List._
+    import com.nothoo.ch3.List._
 
     // 3.2
     assert(List(1, 2, 3) == tail(List(0, 1, 2, 3)))
@@ -252,7 +253,7 @@ object Ch3 extends App {
   }
 
   {
-    import Tree._
+    import com.nothoo.ch3.Tree._
 
     // 3.25
     assert(2 == size(Branch(Leaf(1), Leaf(2))))
