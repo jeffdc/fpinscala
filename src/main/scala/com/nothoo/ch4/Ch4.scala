@@ -61,7 +61,7 @@ sealed trait Either[+E,+A] {
     case r@Right(x) => r
   }
 
-  def map2[EE >: E, B >: A, C](b: Either[EE,B])(f: (A,B) => C): Either[EE,C] =
+  def map2[EE >: E, B, C](b: Either[EE,B])(f: (A,B) => C): Either[EE,C] =
     for {
       aa <- this
       bb <- b
@@ -71,27 +71,13 @@ case class Left[+E](value: E) extends Either[E,Nothing]
 case class Right[+A](value: A) extends Either[Nothing,A]
 object Either {
   // 4.7
-
-  ////////////////////////////
-  // Look Here for problem. //
-  ////////////////////////////
   def traverse[E,A,B](es: List[A])(f: A => Either[E, B]): Either[E, List[B]] =
     es match {
       case Nil => Right(Nil)
-      case h::t =>
-        // this is the code that i want
-        // (f(h) map2 traverse(t)(f))(_ :: _)
-        val x: Either[E, B] = f(h)
-        val y: Either[E, List[B]] = traverse(t)(f)
-        // ok so far so good - types look correct
-        // now, WTF! where did Any and Nothing come from?
-        val z: ((B, Any) => Nothing) => Either[E, Nothing] = x map2 y
-        // this next line will no compile since z's params are of the wrong type
-        z(_ :: _)
+      case h::t => (f(h) map2 traverse(t)(f))(_ :: _)
     }
 
   def traverse2[E,A,B](as: List[A])(f: A => Either[E, B]): Either[E, List[B]] =
-    // N.B. this is an alternate implementation of the traverse function and it has the same problem as above
     as.foldRight[Either[E,List[B]]](Right(Nil))((a, b) => f(a).map2(b)(_ :: _))
 
   def sequence[E,A](as: List[Either[E,A]]): Either[E,List[A]] = traverse(as)(identity)
@@ -135,6 +121,5 @@ object Ch4 extends App {
   assert(Right(3) == Right(2).map2(Right(1))((a:Int,b:Int) => a+b))
 
   // 4.7
-  println(Either.sequence(List(Right(1),Right(2),Right(3))))
   assert(Right(List(1,2,3)) == Either.sequence(List(Right(1),Right(2),Right(3))))
 }
