@@ -1,7 +1,7 @@
 package com.nothoo.ch4
 
-// hide stuff from standard library
-import scala.{Either => _, Option => _, _}
+// hide stuff from standard library -- looks to be very hard to convince IDEA that we are nut using these types
+import scala.{Either => _, Option => _, Some => _, None => _, Left => _, Right => _, _}
 
 sealed trait Option[+A] {
   def map[B](f: A => B): Option[B] = this match {
@@ -44,6 +44,62 @@ object Option {
   def sequence2[A](a: List[Option[A]]): Option[List[A]] = traverse(a)(identity)
 }
 
+sealed trait Either[+E,+A] {
+  // 4.6
+  def map[B](f: A => B): Either[E,B] = this match {
+    case l@Left(_) => l
+    case Right(x) => Right(f(x))
+  }
+
+  def flatMap[EE >: E, B](f: A => Either[EE,B]): Either[EE,B] = this match {
+    case l@Left(_) => l
+    case Right(x) => f(x)
+  }
+
+  def orElse[EE >: E, B >: A](b: Either[EE,B]): Either[EE,B] = this match {
+    case Left(_) => b
+    case r@Right(x) => r
+  }
+
+  def map2[EE >: E, B >: A, C](b: Either[EE,B])(f: (A,B) => C): Either[EE,C] =
+    for {
+      aa <- this
+      bb <- b
+    } yield f(aa,bb)
+}
+case class Left[+E](value: E) extends Either[E,Nothing]
+case class Right[+A](value: A) extends Either[Nothing,A]
+object Either {
+  // 4.7
+
+  ////////////////////////////
+  // Look Here for problem. //
+  ////////////////////////////
+  def traverse[E,A,B](es: List[A])(f: A => Either[E, B]): Either[E, List[B]] =
+    es match {
+      case Nil => Right(Nil)
+      case h::t =>
+        // this is the code that i want
+        // (f(h) map2 traverse(t)(f))(_ :: _)
+        val x: Either[E, B] = f(h)
+        val y: Either[E, List[B]] = traverse(t)(f)
+        // ok so far so good - types look correct
+        // now, WTF! where did Any and Nothing come from?
+        val z: ((B, Any) => Nothing) => Either[E, Nothing] = x map2 y
+        // this next line will no compile since z's params are of the wrong type
+        z(_ :: _)
+    }
+
+  def traverse2[E,A,B](as: List[A])(f: A => Either[E, B]): Either[E, List[B]] =
+    // N.B. this is an alternate implementation of the traverse function and it has the same problem as above
+    as.foldRight[Either[E,List[B]]](Right(Nil))((a, b) => f(a).map2(b)(_ :: _))
+
+  def sequence[E,A](as: List[Either[E,A]]): Either[E,List[A]] = traverse(as)(identity)
+
+
+}
+
+
 object Ch4 extends App {
   // 4.1
   assert(Some(2) == Some(1).map(_ + 1))
@@ -72,4 +128,13 @@ object Ch4 extends App {
   val f: (Int) => Option[Int] = { (x:Int) => if (x<2) Some(x) else None }
   assert(sequence(a map f) == traverse(a)(f))
   assert(sequence(List(Some(1),Some(2))) == sequence2(List(Some(1),Some(2))))
+
+  // 4.6
+  assert(Right(2) == Right(1).map(_ + 1))
+  assert(Right(1) == Right(Right(1)).flatMap(identity))
+  assert(Right(3) == Right(2).map2(Right(1))((a:Int,b:Int) => a+b))
+
+  // 4.7
+  println(Either.sequence(List(Right(1),Right(2),Right(3))))
+  assert(Right(List(1,2,3)) == Either.sequence(List(Right(1),Right(2),Right(3))))
 }
